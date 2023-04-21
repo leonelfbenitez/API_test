@@ -1,0 +1,12 @@
+NOTE: This is an optional assignment which will give you 5 additional points to your final grade.
+
+Instructions: You will need to create a video tutorial (around 8 minutes) about creating an API REST Service (something similar to what I did in the previous recordings). The API must include the following features: Create records, list records, delete records, and edit records.
+
+Requirements:
+
+You must create your own database with different structure and data.
+You only need to explain your database schema, source code, and show a demo of your API working.
+What and how to submit:
+
+You can share me a link to Youtube, DropBox, Google Drive (somewhere where I can download your video)
+If the size is not too big, you can submit your video directly to iCollege.
