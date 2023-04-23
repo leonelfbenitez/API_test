@@ -1,262 +1,261 @@
+# pip install flask
+# pip install jsonify
+# pip install flask-restful
 # pip install flask-cors
 
-import pymysql
-from app import app
-from db_config import mysql
-from flask import jsonify
-from flask import flash, request
+from flask import flash, request, jsonify
+import sqlite3
+from db import conn # it forces the database to be created, if it doesn't exist
+from app import app # it starts the flask api sharing process
 
-#Get records from a specific table in JSON format
-#http://localhost/user
-@app.route('/users') #Changed the path to 'users'
-def users():
+# route to provide all records/info for all books in the inventory 
+@app.route('/inventory')
+def inventory():
     try:
-        #MySQL connection
-        conn = mysql.connect()
-        cur = conn.cursor(pymysql.cursors.DictCursor) #The function is actually cursor(), not cur()
+        # open connection to database
+        conn = sqlite3.connect("database.db")
+        cur = conn.cursor()
         
-        cur.execute("SELECT * FROM user;")
+        # retrieve all records from inventory table
+        cur.execute("SELECT * FROM inventory;")
         rows = cur.fetchall()
-        print("Records returned: "+str(len(rows)))
-
-        if len(rows) > 0:
-            resp = jsonify(rows)
-            resp.status_code = 200
-            return resp
-
-        else:
-            message = {
-                'status': 404,
-                'message': 'The table is empty'
-            }
-            resp = jsonify(message)
-            resp.status_code = 404
-            return resp
-
-        cur.close() #The finally block was removed and its content was placed here
+        
+        # close connection to database
+        cur.close()
         conn.close()
 
-    except Exception as e: #(If there is an error, it will be returned in a JSON format)
+        # if rows/results are found:
+        if len(rows) > 0:
+            resp = jsonify(rows) # jsonify results for delivery
+            resp.status_code = 200 # tag response as code 200/OK
+            return resp # return response/results
+
+        # else, no records found:
+        else:
+            # create error message for delivery
+            message = {
+                'status': 402,
+                'message': 'No records found!'
+            }
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 402 # tag response with error code
+            return resp # return response/error
+    
+    # any other errors/exceptions will ba catched here:
+    except Exception as e:
+
+	    # create error message for delivery:
         message = {
             'status': 500,
-            'message': 'Error: '+str(e)
+            'message': 'Error: ' + str(e)
         }
-        resp = jsonify(message)
-        resp.status_code = 500
-        return resp
-
-#Select a specific record from a specific table
-    #The record will be obtained based on the ID specified in the URI
-    #Only a single record will be returned in a JSON format
-    #Error message should be displayed in a JSON format (if operation failed)
-    #If record not found, a message should be returned in a JSON format
-
-@app.route('/user/<int:id>')
-def view_user(id):
-    try:
-        #MySQL connection
-        conn = mysql.connect()
-        cur = conn.cursor(pymysql.cursors.DictCursor) #The function is actually cursor(), not cur()
+        resp = jsonify(message) # jsonify response/message for delivery
+        resp.status_code = 500 # tage response/message with error code
+        return resp # return response
         
-        cur.execute("SELECT * FROM user WHERE id = %s;",id)
-        rows = cur.fetchall()
-        print("Records returned: "+str(len(rows)))
-
-        if len(rows) > 0:
-            resp = jsonify(rows)
-            resp.status_code = 200
-            return resp
-
-        else:
-            message = {
-                'status': 414,
-                'message': 'The user with the ID specified does NOT exist'
-            }
-            resp = jsonify(message)
-            resp.status_code = 414
-            return resp
-
-        cur.close() #The finally block was removed and its content was placed here
-        conn.close()
-
-    except Exception as e: #(If there is an error, it will be returned in a JSON format)
-        message = {
-        'status': 500,
-        'message': 'Error: '+str(e)
-        }
-        resp = jsonify(message)
-        resp.status_code = 500
-        return resp
-
-
-#Create an user into a specific table from a database
-    #Using an HTML form
-    #Fields must not be empty during submission
-    #A 200 status code must be returned if operation is successful (JSON format)
-    #Error should be displayed in a JSON format (if operation failed)
-    #There is no need to check for duplicates since the ID is generated automatically by the RDBMS
-@app.route('/user/create', methods=['POST'])
-def add_user():
+# route to create record in inventory
+@app.route('/inventory/create', methods=['POST'])
+def add_book():
     try:
-        username = request.form['username']
-        email = request.form['email']
-        phone = request.form['phone']
+        # retrieve data/info from frontend/client
+        name = request.form['name']
+        description = request.form['description']
+        category = request.form['category']
+        price = request.form['price']
+        stock = request.form['stock']
 
-        #MySQL connection
-        conn = mysql.connect()
-        cur = conn.cursor(pymysql.cursors.DictCursor)
+        # open connection to database
+        conn = sqlite3.connect("database.db")
+        cur = conn.cursor()
 
-        if username and email and phone:
+        # if required fields are not empty:
+        if name and category and price and stock:
+            
+            # insert data/info into inventory table
 
-            sql = "INSERT INTO user(username, email, phone) VALUES(%s, %s, %s)"
-            data = (username, email, phone)
+            cur.execute("INSERT INTO inventory(name, description, category, price, stock) VALUES(?, ?, ?, ?, ?);", 
+                        (name, description, category, price, stock))
 
-            cur.execute(sql, data)
+            # changes are commited and connection to database closed
             conn.commit()
+            cur.close() 
+            conn.close()
 
+            # create success response message
             message = {
                 'status': 200,
                 'message': 'The user was created successfully'
             }
-            resp = jsonify(message)
-            resp.status_code = 200
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 200 # tag response with code 200/OK
         
+        # else required fields are empty:
         else:
+            # create error message
             message = {
                 'status': 510,
                 'message': 'Some of the fields are empty'
             }
-            resp = jsonify(message)
-            resp.status_code = 510
-
-        cur.close() #The finally block was removed and its content was placed here
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 510 # tag response with error code
+        
+        return resp # return appropriate response
+    
+    # any other errors/exceptions will ba catched here:
+    except Exception as e:
+        # close connection to database in case it doesn't close properly
+        cur.close()
         conn.close()
 
-        return resp
-    
-    except Exception as e: #(If there is an error, it will be returned in a JSON format)
+	    # create error message for delivery:
         message = {
-        'status': 500,
-        'message': 'Error: '+str(e)
+            'status': 500,
+            'message': 'Error: ' + str(e)
         }
-        resp = jsonify(message)
-        resp.status_code = 500
-        return resp
+        resp = jsonify(message) # jsonify response/message for delivery
+        resp.status_code = 500 # tage response/message with error code
+        return resp # return response  
 
-#Delete a specific record from a specific table
-    #Check if the user exists (if not, return an error message in a JSON format)
-    #A 200 status code must be returned if operation is sucessful (JSON format)
-    #Error should be displayed in a JSON format (if operation failed)
-    #Parameter specificed in the URI must be valid (number)
-
-@app.route('/user/delete/<int:id>')
-def delete_user(id):
+# route to delete record from the inventory table with provided id
+@app.route('/inventory/delete/<int:id>')
+def delete_book(id):
     try:
-        #MySQL connection
-        conn = mysql.connect()
-        cur = conn.cursor(pymysql.cursors.DictCursor) #The function is actually cursor(), not cur()
+        # open connection to database
+        conn = sqlite3.connect("database.db")
+        cur = conn.cursor()
         
-        cur.execute("SELECT * FROM user WHERE id = %s;",id)
+        # retrieve data from record to be retrieved
+        cur.execute("SELECT * FROM inventory WHERE bookId = ?;", (id, ))
         rows = cur.fetchall()
-        print("Records returned: "+str(len(rows)))
 
+        # if record is found:
         if len(rows) > 0:
-            cur.execute("DELETE FROM user WHERE id = %s;",id)
+            # retrieve record from table
+            cur.execute("DELETE FROM inventory WHERE bookId = ?;", (id, ))
+
+            # changes are commited and connection to database closed
             conn.commit()
+            cur.close() 
+            conn.close()
+
+            # create success message
             message = {
                 'status': 200,
-                'message': 'The user with ID '+str(id)+' was deleted successfully'
+                'message': 'The user with ID ' + str(id) + ' was deleted successfully'
             }
-            resp = jsonify(message)
-            resp.status_code = 414
-            return resp
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 200 # tag response with error code
+            return resp # return response
 
+        # else record not found:
         else:
+            # close connection to the database
+            cur.close() 
+            conn.close()
+            # create error message
             message = {
                 'status': 414,
                 'message': 'The user with the ID specified does NOT exist'
             }
-            resp = jsonify(message)
-            resp.status_code = 414
-            return resp
+            resp = jsonify(message) # jsonify response for delivery
+            resp.status_code = 414 # tag response with error code
+            return resp # return response
 
-        cur.close() #The finally block was removed and its content was placed here
+    # any other errors/exceptions will ba catched here:
+    except Exception as e:
+        # close connection to database in case it doesn't close properly
+        cur.close()
         conn.close()
 
-    except Exception as e: #(If there is an error, it will be returned in a JSON format)
+	    # create error message for delivery:
         message = {
-        'status': 500,
-        'message': 'Error: '+str(e)
+            'status': 500,
+            'message': 'Error: ' + str(e)
         }
-        resp = jsonify(message)
-        resp.status_code = 500
-        return resp
+        resp = jsonify(message) # jsonify response/message for delivery
+        resp.status_code = 500 # tage response/message with error code
+        return resp # return response
 
-#Edit an existing record, using JavaScript+AJAX
-@app.route('/user/edit', methods=['POST'])
+
+# route to edit a record from the inventory table
+@app.route('/inventory/edit', methods=['POST'])
 def edit_user():
     try:
-        id = request.form['userId']
-        username = request.form['username']
-        email = request.form['email']
-        phone = request.form['phone']
+        bookId = request.form['bookId']
+        name = request.form['name']
+        description = request.form['description']
+        category = request.form['category']
+        price = request.form['price']
+        stock = request.form['stock']
 
-        #MySQL connection
-        conn = mysql.connect()
-        cur = conn.cursor(pymysql.cursors.DictCursor)
+        # open connection to database
+        conn = sqlite3.connect("database.db")
+        cur = conn.cursor()
 
-        if username and email and phone:
+        # if required fields are not empty:
+        if bookId and name and category and price and stock:
             
-            sql = "UPDATE user SET username = %s,email = %s,phone = %s WHERE id = %s;"
-            data = (username, email, phone, id)
-
-            cur.execute(sql, data)
+            # edit the record with given data 
+            cur.execute("UPDATE inventory SET name = ?, description = ?, category = ?, price = ?, stock = ? WHERE bookId = ?;", 
+                        (bookId, name, description, category, price, stock))
+            
+            # changes are commited and connection to database closed
             conn.commit()
+            cur.close() 
+            conn.close()
 
+            # create success message
             message = {
                 'status': 200,
                 'message': 'The user was modified successfully'
             }
-            resp = jsonify(message)
-            resp.status_code = 200
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 200 # tag response with error code
+            return resp # return response
         
+        # if required fields are empty:
         else:
+            # close connection to the database
+            cur.close() 
+            conn.close()
+            
+            # create error message
             message = {
                 'status': 510,
                 'message': 'Some of the fields are empty'
             }
-            resp = jsonify(message)
-            resp.status_code = 510
-
-        cur.close() #The finally block was removed and its content was placed here
+            resp = jsonify(message) # jsonify message for delivery
+            resp.status_code = 510 # tag message with error code
+            return resp # return response
+    
+    # any other errors/exceptions will ba catched here:
+    except Exception as e:
+        # close connection to database in case it doesn't close properly
+        cur.close()
         conn.close()
 
-        return resp
-    
-    except Exception as e: #(If there is an error, it will be returned in a JSON format)
+	    # create error message for delivery:
         message = {
-        'status': 500,
-        'message': 'Error: '+str(e)
+            'status': 500,
+            'message': 'Error: ' + str(e)
         }
-        resp = jsonify(message)
-        resp.status_code = 500
-        return resp
+        resp = jsonify(message) # jsonify response/message for delivery
+        resp.status_code = 500 # tage response/message with error code
+        return resp # return response
 
 
-#List records in a table using JavaScript+AJAX
-#Custom search (using GET method)
-
+# URL not found error catched here
 @app.errorhandler(404)
 def not_found(error = None):
+    # create error message
     message = {
         'status': 404,
-        'message': 'Not found: '+request.url
+        'message': 'Not found: ' + request.url
     }
+    resp = jsonify(message) # jsonify message for delivery
+    resp.status_code = 404 # tag error message with code
+    return resp # return response
 
-    resp = jsonify(message)
-    resp.status_code = 404
-
-    return resp
 
 # launch application
 if __name__ == "__main__":
